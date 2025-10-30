@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Consumer Indexing Survey</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-header">
+                <h1>⚡ Consumer Survey</h1>
+                <p>Login Portal</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="role-select">Select Role</label>
+                    <select id="role-select" required>
+                        <option value="">-- Select Role --</option>
+                        <option value="surveyor">Surveyor</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div id="surveyor-fields">
+                    <div class="form-group">
+                        <label for="surveyor-id">Surveyor ID</label>
+                        <input type="text" id="surveyor-id" placeholder="Enter Surveyor ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="division">Select Division</label>
+                        <select id="division">
+                            <option value="">-- Select Division --</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="admin-fields" style="display: none;">
+                    <div class="form-group">
+                        <label for="admin-id">Admin ID</label>
+                        <input type="text" id="admin-id" placeholder="Enter Admin ID">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter Password" required>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="remember-me">
+                    <label for="remember-me">Remember me</label>
+                </div>
+                <div id="login-error" class="error-message" style="display: none;"></div>
+                <button type="submit" class="btn btn-primary btn-block">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen">
+        <div class="app-header">
+            <div class="header-title">
+                <h2>Welcome, <span id="surveyor-name"></span></h2>
+                <p><span id="current-division"></span> - <span id="current-dc"></span></p>
+            </div>
+            <button class="btn-icon" id="logout-btn">🚪</button>
+        </div>
+        
+        <div class="content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="total-surveys-today">0</div>
+                        <div class="stat-label">Surveys Today</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="consumers-indexed">0</div>
+                        <div class="stat-label">Consumers Indexed</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🕐</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="last-submission">--:--</div>
+                        <div class="stat-label">Last Submission</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📍</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="gps-status">Ready</div>
+                        <div class="stat-label">GPS Status</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-grid">
+                <button class="menu-card" id="start-survey-btn">
+                    <div class="menu-icon">📝</div>
+                    <div class="menu-title">Start New Survey</div>
+                </button>
+                <button class="menu-card" id="view-history-btn">
+                    <div class="menu-icon">📋</div>
+                    <div class="menu-title">View History</div>
+                </button>
+                <button class="menu-card" id="sync-data-btn">
+                    <div class="menu-icon">🔄</div>
+                    <div class="menu-title">Sync Data</div>
+                </button>
+                <button class="menu-card" id="settings-btn">
+                    <div class="menu-icon">⚙️</div>
+                    <div class="menu-title">Settings</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consumer Search Screen -->
+    <div id="search-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="search-back-btn">←</button>
+            <h2>Search Consumer</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-input" placeholder="Search by ID, Name, Address, Meter, Mobile...">
+            </div>
+            
+            <div class="search-filters">
+                <label>Survey Status:</label>
+                <select id="survey-status-filter" class="form-control">
+                    <option value="not-surveyed">Not Surveyed</option>
+                    <option value="surveyed">Surveyed</option>
+                    <option value="all">All</option>
+                </select>
+            </div>
+            
+            <div class="search-tabs">
+                <button class="search-tab active" data-type="all">All</button>
+                <button class="search-tab" data-type="id">Consumer ID</button>
+                <button class="search-tab" data-type="name">Name</button>
+                <button class="search-tab" data-type="address">Address</button>
+                <button class="search-tab" data-type="meter">Meter</button>
+                <button class="search-tab" data-type="mobile">Mobile</button>
+            </div>
+            
+            <div id="search-results" class="search-results"></div>
+        </div>
+    </div>
+
+    <!-- Consumer Details Screen -->
+    <div id="consumer-details-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="details-back-btn">←</button>
+            <h2>Consumer Details</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="details-card">
+                <h3 id="consumer-name-header"></h3>
+                <div class="detail-row">
+                    <span class="detail-label">Consumer Number</span>
+                    <span class="detail-value" id="detail-consumer-no"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Address</span>
+                    <span class="detail-value" id="detail-address"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Mobile Number</span>
+                    <span class="detail-value" id="detail-mobile"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Connected Load</span>
+                    <span class="detail-value" id="detail-load"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Tariff Category</span>
+                    <span class="detail-value" id="detail-tariff"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Meter Number</span>
+                    <span class="detail-value" id="detail-meter-no"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Meter Make</span>
+                    <span class="detail-value" id="detail-meter-make"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Division</span>
+                    <span class="detail-value" id="detail-division"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">DC</span>
+                    <span class="detail-value" id="detail-dc"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Current Feeder</span>
+                    <span class="detail-value" id="detail-feeder"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Current DTR</span>
+                    <span class="detail-value" id="detail-dtr"></span>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary btn-block" id="collect-data-btn">Collect/Update Data</button>
+        </div>
+    </div>
+
+    <!-- Network Selection Screen -->
+    <div id="network-selection-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="network-back-btn">←</button>
+            <h2>Network Selection</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="wizard-steps">
+                <div class="wizard-step active" data-step="1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">DC</div>
+                </div>
+                <div class="wizard-step" data-step="2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Feeder</div>
+                </div>
+                <div class="wizard-step" data-step="3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">DTR</div>
+                </div>
+            </div>
+            
+            <div id="network-step-1" class="network-step active">
+                <h3>Step 1: Select DC</h3>
+                <div class="form-group">
+                    <label>Distribution Center</label>
+                    <select id="dc-select" class="form-control">
+                        <option value="">-- Select DC --</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary btn-block" id="dc-next-btn" disabled>Next: Select Feeder</button>
+            </div>
+            
+            <div id="network-step-2" class="network-step">
+                <h3>Step 2: Select Feeder</h3>
+                <div class="form-group">
+                    <label>Feeder</label>
+                    <select id="feeder-select" class="form-control">
+                        <option value="">-- Select Feeder --</option>
+                    </select>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" id="feeder-back-btn">Back</button>
+                    <button class="btn btn-primary" id="feeder-next-btn" disabled>Next: Select DTR</button>
+                </div>
+            </div>
+            
+            <div id="network-step-3" class="network-step">
+                <h3>Step 3: Select DTR</h3>
+                <div class="form-group">
+                    <label>Distribution Transformer</label>
+                    <select id="dtr-select" class="form-control">
+                        <option value="">-- Select DTR --</option>
+                    </select>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" id="dtr-back-btn">Back</button>
+                    <button class="btn btn-primary" id="dtr-next-btn" disabled>Next: Data Entry</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Entry Screen -->
+    <div id="data-entry-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="entry-back-btn">←</button>
+            <h2>Data Collection</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <form id="data-entry-form">
+                <div class="form-group">
+                    <label>Mobile Number</label>
+                    <input type="tel" id="mobile-input" class="form-control" placeholder="Enter 10-digit mobile" maxlength="10">
+                    <small>Previous: <span id="previous-mobile"></span></small>
+                </div>
+                
+                <div class="expandable-section">
+                    <button type="button" class="expandable-header" data-target="additional-details">
+                        <span>Additional Details</span>
+                        <span class="expand-icon">▼</span>
+                    </button>
+                    <div id="additional-details" class="expandable-content">
+                        <div class="form-group">
+                            <label>Connected Load (kW)</label>
+                            <input type="number" id="load-input" class="form-control" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>Tariff</label>
+                            <select id="tariff-input" class="form-control">
+                                <option value="LV1">LV1 - Domestic</option>
+                                <option value="LV2">LV2 - Commercial</option>
+                                <option value="LV3">LV3 - Industrial</option>
+                                <option value="AG">AG - Agriculture</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Meter Make</label>
+                            <input type="text" id="meter-make-input" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Address Confirmation</label>
+                            <textarea id="address-input" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes/Comments</label>
+                            <textarea id="notes-input" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="verification-section">
+                    <h4>Verification Checklist</h4>
+                    <div class="form-check">
+                        <input type="checkbox" id="verify-meter">
+                        <label for="verify-meter">Meter physically verified</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" id="verify-consumer">
+                        <label for="verify-consumer">Consumer details confirmed</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" id="verify-address">
+                        <label for="verify-address">Address verified on ground</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" id="verify-load">
+                        <label for="verify-load">Load details confirmed</label>
+                    </div>
+                </div>
+                
+                <div class="photo-section">
+                    <h4>Photo Capture (Optional)</h4>
+                    <div id="photo-preview" class="photo-preview"></div>
+                    <button type="button" class="btn btn-secondary btn-block" id="capture-photo-btn">📷 Take Photo</button>
+                    <input type="file" id="photo-input" accept="image/*" capture="environment" style="display: none;" multiple>
+                </div>
+                
+                <button type="button" class="btn btn-primary btn-block" id="proceed-gps-btn">Proceed to GPS Location</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- GPS Location Screen -->
+    <div id="gps-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="gps-back-btn">←</button>
+            <h2>GPS Location</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="gps-container">
+                <div class="gps-icon" id="gps-icon">📍</div>
+                <div class="gps-status" id="gps-status-text">Acquiring GPS...</div>
+                <div class="gps-info">
+                    <div class="gps-data">
+                        <span class="gps-label">Latitude:</span>
+                        <span class="gps-value" id="gps-lat">--</span>
+                    </div>
+                    <div class="gps-data">
+                        <span class="gps-label">Longitude:</span>
+                        <span class="gps-value" id="gps-lng">--</span>
+                    </div>
+                    <div class="gps-data">
+                        <span class="gps-label">Accuracy:</span>
+                        <span class="gps-value" id="gps-accuracy">--</span>
+                    </div>
+                    <div class="gps-data">
+                        <span class="gps-label">Timestamp:</span>
+                        <span class="gps-value" id="gps-timestamp">--</span>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-block" id="refresh-gps-btn">🔄 Refresh Location</button>
+                <div class="gps-message" id="gps-message"></div>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="manual-gps-btn">Enter Manually</button>
+                <button class="btn btn-primary" id="proceed-review-btn" disabled>Proceed to Review</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Review Screen -->
+    <div id="review-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="review-back-btn">←</button>
+            <h2>Review &amp; Submit</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="review-section">
+                <h3>Consumer Details</h3>
+                <div class="review-item">
+                    <span class="review-label">Consumer Number:</span>
+                    <span class="review-value" id="review-consumer-no"></span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">Name:</span>
+                    <span class="review-value" id="review-name"></span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">Mobile:</span>
+                    <span class="review-value" id="review-mobile"></span>
+                </div>
+            </div>
+            
+            <div class="review-section">
+                <h3>Network Assignment</h3>
+                <div class="review-item">
+                    <span class="review-label">DC:</span>
+                    <span class="review-value" id="review-dc"></span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">Feeder:</span>
+                    <span class="review-value" id="review-feeder"></span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">DTR:</span>
+                    <span class="review-value" id="review-dtr"></span>
+                </div>
+            </div>
+            
+            <div class="review-section">
+                <h3>Survey Details</h3>
+                <div class="review-item">
+                    <span class="review-label">GPS Location:</span>
+                    <span class="review-value" id="review-gps"></span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">Accuracy:</span>
+                    <span class="review-value" id="review-accuracy"></span>
+                </div>
+                <div class="review-item">
+                    <span class="review-label">Photos:</span>
+                    <span class="review-value" id="review-photos"></span>
+                </div>
+            </div>
+            
+            <div class="confirmation-section">
+                <div class="form-check">
+                    <input type="checkbox" id="confirm-accurate">
+                    <label for="confirm-accurate">All information is accurate and verified</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="confirm-premises">
+                    <label for="confirm-premises">I am at the consumer premises</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="confirm-gps">
+                    <label for="confirm-gps">GPS location is correct</label>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="confirm-data">
+                    <label for="confirm-data">I have captured required data</label>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="edit-data-btn">Edit</button>
+                <button class="btn btn-primary" id="final-submit-btn" disabled>Submit Survey</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Screen -->
+    <div id="success-screen" class="screen">
+        <div class="content centered">
+            <div class="success-icon">✓</div>
+            <h2>Survey Submitted Successfully!</h2>
+            <div class="success-details">
+                <div class="success-item">
+                    <span class="success-label">Reference Number:</span>
+                    <span class="success-value" id="success-ref"></span>
+                </div>
+                <div class="success-item">
+                    <span class="success-label">Submitted at:</span>
+                    <span class="success-value" id="success-time"></span>
+                </div>
+                <div class="success-item">
+                    <span class="success-label">GPS Coordinates:</span>
+                    <span class="success-value" id="success-coords"></span>
+                </div>
+                <div class="success-message" id="success-message"></div>
+            </div>
+            
+            <div class="success-actions">
+                <button class="btn btn-primary btn-block" id="download-excel-btn">📥 Download as Excel</button>
+                <button class="btn btn-primary btn-block" id="download-pdf-btn">📄 Download as PDF</button>
+                <button class="btn btn-secondary btn-block" id="new-survey-btn">Start New Survey</button>
+                <button class="btn btn-secondary btn-block" id="view-history-from-success-btn">View Survey History</button>
+                <button class="btn btn-secondary btn-block" id="dashboard-from-success-btn">Back to Dashboard</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Survey History Screen -->
+    <div id="history-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="history-back-btn">←</button>
+            <h2>Survey History</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="history-filters">
+                <input type="date" id="history-date-filter" class="form-control">
+                <select id="history-status-filter" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="Synced">Synced</option>
+                    <option value="Pending">Pending</option>
+                </select>
+            </div>
+            
+            <div id="history-list" class="history-list"></div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="admin-dashboard-screen" class="screen">
+        <div class="app-header">
+            <div class="header-title">
+                <h2>Admin Dashboard</h2>
+            </div>
+            <button class="btn-icon" id="admin-logout-btn">🚪</button>
+        </div>
+        
+        <div class="content">
+            <div class="welcome-section">
+                <h2>Welcome, Admin</h2>
+            </div>
+            
+            <div class="stats-grid admin-stats">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="admin-total-consumers">0</div>
+                        <div class="stat-label">Total Consumers</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">✓</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="admin-surveyed-consumers">0</div>
+                        <div class="stat-label">Consumers Surveyed</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="admin-total-surveys">0</div>
+                        <div class="stat-label">Total Surveys</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📈</div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="admin-completion-rate">0%</div>
+                        <div class="stat-label">Completion Rate</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="menu-grid">
+                <button class="menu-card" id="admin-upload-data-btn">
+                    <div class="menu-icon">📤</div>
+                    <div class="menu-title">Upload Master Data</div>
+                </button>
+                <button class="menu-card" id="admin-view-surveys-btn">
+                    <div class="menu-icon">📋</div>
+                    <div class="menu-title">View All Surveys</div>
+                </button>
+                <button class="menu-card" id="admin-manage-consumers-btn">
+                    <div class="menu-icon">👤</div>
+                    <div class="menu-title">Manage Consumers</div>
+                </button>
+                <button class="menu-card" id="admin-reports-btn">
+                    <div class="menu-icon">📊</div>
+                    <div class="menu-title">Reports &amp; Analytics</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Upload Data Screen -->
+    <div id="admin-upload-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="upload-back-btn">←</button>
+            <h2>Upload Master Data</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="upload-section">
+                <h3>Upload Feeder Master</h3>
+                <button class="btn btn-secondary btn-block" id="download-feeder-template-btn">📥 Download Template</button>
+                <div class="form-group">
+                    <label>Select Excel File (.xlsx, .xls)</label>
+                    <input type="file" id="feeder-file-input" accept=".xlsx,.xls" class="form-control">
+                </div>
+                <button class="btn btn-primary btn-block" id="upload-feeder-btn" disabled>Upload Feeder Master</button>
+                <div id="feeder-upload-status" class="upload-status"></div>
+            </div>
+            
+            <div class="upload-section">
+                <h3>Upload Consumer Master</h3>
+                <button class="btn btn-secondary btn-block" id="download-consumer-template-btn">📥 Download Template</button>
+                <div class="form-group">
+                    <label>Select Excel File (.xlsx, .xls)</label>
+                    <input type="file" id="consumer-file-input" accept=".xlsx,.xls" class="form-control">
+                </div>
+                <button class="btn btn-primary btn-block" id="upload-consumer-btn" disabled>Upload Consumer Master</button>
+                <div id="consumer-upload-status" class="upload-status"></div>
+            </div>
+            
+            <div class="upload-section">
+                <h3>Current Master Data Status</h3>
+                <div class="stats-list">
+                    <div class="stat-row">
+                        <span>Divisions:</span>
+                        <span id="stat-divisions">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>DCs:</span>
+                        <span id="stat-dcs">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Feeders:</span>
+                        <span id="stat-feeders">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>DTRs:</span>
+                        <span id="stat-dtrs">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Total Consumers:</span>
+                        <span id="stat-consumers">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin View Surveys Screen -->
+    <div id="admin-surveys-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="surveys-back-btn">←</button>
+            <h2>All Surveys</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="filters-section">
+                <input type="date" id="admin-survey-date-filter" class="form-control">
+                <select id="admin-surveyor-filter" class="form-control">
+                    <option value="">All Surveyors</option>
+                </select>
+            </div>
+            
+            <div id="admin-surveys-list" class="admin-table-container"></div>
+        </div>
+    </div>
+
+    <!-- Admin Manage Consumers Screen -->
+    <div id="admin-consumers-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="consumers-back-btn">←</button>
+            <h2>Manage Consumers</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="filters-section">
+                <input type="text" id="admin-consumer-search" class="form-control" placeholder="Search consumer...">
+                <select id="admin-consumer-status-filter" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="not-surveyed">Not Surveyed</option>
+                    <option value="surveyed">Surveyed</option>
+                </select>
+            </div>
+            
+            <div id="admin-consumers-list" class="admin-table-container"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
