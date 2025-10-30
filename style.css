@@ -1917,6 +1917,183 @@ body {
   justify-content: flex-end;
 }
 
+/* Section Header */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h3 {
+  font-size: 18px;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+/* Surveyor List */
+.surveyor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.surveyor-card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+}
+
+.surveyor-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.surveyor-card .surveyor-info {
+  flex: 1;
+}
+
+.surveyor-card .surveyor-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.surveyor-card .surveyor-id {
+  font-size: 14px;
+  color: var(--color-text-light);
+}
+
+.surveyor-card .card-details {
+  font-size: 14px;
+  color: var(--color-text-light);
+  margin-bottom: 4px;
+}
+
+.surveyor-card .card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.surveyor-card .btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.surveyor-card .btn-view {
+  background: var(--color-primary);
+  color: white;
+}
+
+.surveyor-card .btn-edit {
+  background: var(--color-warning);
+  color: white;
+}
+
+.surveyor-card .btn-deactivate {
+  background: var(--color-error);
+  color: white;
+}
+
+.surveyor-card .btn-activate {
+  background: var(--color-success);
+  color: white;
+}
+
+/* Charts */
+.chart-container {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+  min-height: 300px;
+}
+
+.chart-container h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: var(--color-primary);
+}
+
+.chart-container canvas {
+  max-height: 300px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.chart-half {
+  min-height: 250px;
+}
+
+/* Export Section */
+.export-section {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+/* Surveyor Profile */
+.profile-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.profile-section:last-child {
+  border-bottom: none;
+}
+
+.profile-section h4 {
+  font-size: 16px;
+  color: var(--color-primary);
+  margin-bottom: 12px;
+}
+
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.profile-label {
+  color: var(--color-text-light);
+}
+
+.profile-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+/* Status Badge Variations */
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge.inactive {
+  background: #f8d7da;
+  color: #721c24;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .stats-grid {
@@ -1943,6 +2120,20 @@ body {
   .admin-table th,
   .admin-table td {
     padding: 8px;
+  }
+  
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .section-header .btn {
+    width: 100%;
   }
 }
 
