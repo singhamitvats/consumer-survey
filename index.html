@@ -28,13 +28,7 @@
                 <div id="surveyor-fields">
                     <div class="form-group">
                         <label for="surveyor-id">Surveyor ID</label>
-                        <input type="text" id="surveyor-id" placeholder="Enter Surveyor ID">
-                    </div>
-                    <div class="form-group">
-                        <label for="division">Select Division</label>
-                        <select id="division">
-                            <option value="">-- Select Division --</option>
-                        </select>
+                        <input type="text" id="surveyor-id" placeholder="Enter Surveyor ID" required>
                     </div>
                 </div>
                 <div id="admin-fields" style="display: none;">
@@ -62,7 +56,7 @@
         <div class="app-header">
             <div class="header-title">
                 <h2>Welcome, <span id="surveyor-name"></span></h2>
-                <p><span id="current-division"></span> - <span id="current-dc"></span></p>
+                <p>DC: <span id="current-dc"></span></p>
             </div>
             <button class="btn-icon" id="logout-btn">🚪</button>
         </div>
@@ -193,10 +187,6 @@
                 <div class="detail-row">
                     <span class="detail-label">Meter Make</span>
                     <span class="detail-value" id="detail-meter-make"></span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Division</span>
-                    <span class="detail-value" id="detail-division"></span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">DC</span>
@@ -606,6 +596,14 @@
                     <div class="menu-icon">👥</div>
                     <div class="menu-title">Surveyor Management</div>
                 </button>
+                <button class="menu-card" id="admin-dc-mgmt-btn">
+                    <div class="menu-icon">🏢</div>
+                    <div class="menu-title">DC Management</div>
+                </button>
+                <button class="menu-card" id="admin-feeder-mgmt-btn">
+                    <div class="menu-icon">⚡</div>
+                    <div class="menu-title">Feeder Management</div>
+                </button>
             </div>
         </div>
     </div>
@@ -644,10 +642,6 @@
             <div class="upload-section">
                 <h3>Current Master Data Status</h3>
                 <div class="stats-list">
-                    <div class="stat-row">
-                        <span>Divisions:</span>
-                        <span id="stat-divisions">0</span>
-                    </div>
                     <div class="stat-row">
                         <span>DCs:</span>
                         <span id="stat-dcs">0</span>
@@ -770,14 +764,14 @@
                     <canvas id="surveyorChart"></canvas>
                 </div>
                 <div class="chart-container chart-half">
-                    <h3>Surveys by Division</h3>
+                    <h3>Surveys by DC</h3>
                     <canvas id="divisionChart"></canvas>
                 </div>
             </div>
             
             <div class="chart-row">
                 <div class="chart-container chart-half">
-                    <h3>Surveys by DC</h3>
+                    <h3>Surveys by Feeder</h3>
                     <canvas id="dcChart"></canvas>
                 </div>
                 <div class="chart-container chart-half">
@@ -818,12 +812,6 @@
                     <div class="form-group">
                         <label>Mobile Number *</label>
                         <input type="tel" id="surveyor-mobile-input" class="form-control" placeholder="10-digit mobile" maxlength="10" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Division *</label>
-                        <select id="surveyor-division-input" class="form-control" required>
-                            <option value="">-- Select Division --</option>
-                        </select>
                     </div>
                     <div class="form-group">
                         <label>DC Assignment *</label>
@@ -888,6 +876,175 @@
             </div>
             
             <div id="admin-consumers-list" class="admin-table-container"></div>
+        </div>
+    </div>
+
+    <!-- DC Management Screen -->
+    <div id="admin-dc-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="dc-mgmt-back-btn">←</button>
+            <h2>DC Management</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="section-header">
+                <h3>All Distribution Centers</h3>
+                <button class="btn btn-primary" id="add-dc-btn">+ Add New DC</button>
+            </div>
+            
+            <div class="filters-section">
+                <input type="text" id="dc-search" class="form-control" placeholder="Search by DC code or name...">
+                <select id="dc-status-filter" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            
+            <div id="dc-list" class="dc-list"></div>
+        </div>
+    </div>
+
+    <!-- Feeder Management Screen -->
+    <div id="admin-feeder-screen" class="screen">
+        <div class="app-header">
+            <button class="btn-icon" id="feeder-mgmt-back-btn">←</button>
+            <h2>Feeder Management</h2>
+            <div></div>
+        </div>
+        
+        <div class="content">
+            <div class="section-header">
+                <h3>All Feeders</h3>
+                <button class="btn btn-primary" id="add-feeder-btn">+ Add New Feeder</button>
+            </div>
+            
+            <div class="filters-section">
+                <input type="text" id="feeder-search" class="form-control" placeholder="Search by feeder code or name...">
+                <select id="feeder-dc-filter" class="form-control">
+                    <option value="">All DCs</option>
+                </select>
+                <select id="feeder-status-filter" class="form-control">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            
+            <div id="feeder-list" class="feeder-list"></div>
+        </div>
+    </div>
+
+    <!-- Add/Edit DC Modal -->
+    <div id="dc-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="dc-modal-title">Add New DC</h3>
+                <button class="modal-close" id="close-dc-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="dc-form">
+                    <input type="hidden" id="dc-edit-code">
+                    <div class="form-group">
+                        <label>DC Code *</label>
+                        <input type="text" id="dc-code-input" class="form-control" placeholder="e.g., DC-N01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>DC Name *</label>
+                        <input type="text" id="dc-name-input" class="form-control" placeholder="e.g., DC-North-01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Manager Name</label>
+                        <input type="text" id="dc-manager-input" class="form-control" placeholder="Manager name">
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Person</label>
+                        <input type="text" id="dc-contact-person-input" class="form-control" placeholder="Contact person">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="dc-phone-input" class="form-control" placeholder="10-digit phone" maxlength="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="dc-email-input" class="form-control" placeholder="email@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea id="dc-address-input" class="form-control" rows="2" placeholder="DC address"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="dc-status-input" class="form-control">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-dc-btn">Cancel</button>
+                <button class="btn btn-primary" id="save-dc-btn">Save DC</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Feeder Modal -->
+    <div id="feeder-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="feeder-modal-title">Add New Feeder</h3>
+                <button class="modal-close" id="close-feeder-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="feeder-form">
+                    <input type="hidden" id="feeder-edit-code">
+                    <div class="form-group">
+                        <label>DC Selection *</label>
+                        <select id="feeder-dc-input" class="form-control" required>
+                            <option value="">-- Select DC --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Feeder Code *</label>
+                        <input type="text" id="feeder-code-input" class="form-control" placeholder="e.g., F001" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Feeder Name *</label>
+                        <input type="text" id="feeder-name-input" class="form-control" placeholder="e.g., Main Feeder" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="feeder-description-input" class="form-control" rows="2" placeholder="Feeder description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Voltage Level</label>
+                        <select id="feeder-voltage-input" class="form-control">
+                            <option value="">-- Select --</option>
+                            <option value="11kV">11kV</option>
+                            <option value="33kV">33kV</option>
+                            <option value="66kV">66kV</option>
+                            <option value="132kV">132kV</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Line Length (km)</label>
+                        <input type="number" id="feeder-length-input" class="form-control" step="0.1" placeholder="e.g., 12.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="feeder-status-input" class="form-control">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-feeder-btn">Cancel</button>
+                <button class="btn btn-primary" id="save-feeder-btn">Save Feeder</button>
+            </div>
         </div>
     </div>
 
