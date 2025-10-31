@@ -173,9 +173,22 @@ let todayStats = {
   lastSubmission: null
 };
 
+// Navigation Stack Management
+let navigationStack = [];
+let currentScreen = 'login-screen';
+let sessionStartTime = null;
+let lastActivityTime = null;
+let sessionTimeoutWarningShown = false;
+let sessionCheckInterval = null;
+
+// Session timeout settings (in milliseconds)
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const SESSION_WARNING_THRESHOLD = 25 * 60 * 1000; // 25 minutes
+
 // Initialize App
 function initApp() {
   attachEventListeners();
+  setupBackButtonHandler();
   showScreen('login-screen');
   updateMasterDataStats();
   generateSampleSurveys();
@@ -250,9 +263,31 @@ function generateSampleSurveys() {
 }
 
 // Screen Navigation
-function showScreen(screenId) {
+function showScreen(screenId, addToHistory = true) {
+  // Don't add to history if we're at login screen (not logged in)
+  if (addToHistory && currentUser && screenId !== 'login-screen') {
+    // Only add to stack if it's a different screen
+    if (navigationStack.length === 0 || navigationStack[navigationStack.length - 1] !== screenId) {
+      navigationStack.push(screenId);
+      // Limit stack size to prevent memory issues
+      if (navigationStack.length > 50) {
+        navigationStack.shift();
+      }
+    }
+  }
+  
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(screenId).classList.add('active');
+  currentScreen = screenId;
+  
+  // Update activity time
+  updateActivity();
+  
+  // Update browser history state
+  if (currentUser && screenId !== 'login-screen') {
+    const state = { screen: screenId, timestamp: Date.now() };
+    window.history.pushState(state, '', '#' + screenId);
+  }
 }
 
 // Helper function to get DC by code
@@ -265,6 +300,129 @@ function getFeederByCode(code) {
   return feederMasterData.find(f => f.code === code);
 }
 
+// Browser Back Button Handler
+function setupBackButtonHandler() {
+  // Handle browser back button
+  window.addEventListener('popstate', function(event) {
+    // If user is logged in, navigate within app
+    if (currentUser && navigationStack.length > 0) {
+      event.preventDefault();
+      navigateToPreviousPage();
+    }
+    // If not logged in, let browser handle normally
+  });
+  
+  // Override default back behavior for logged-in users
+  window.addEventListener('beforeunload', function(event) {
+    // Don't show confirmation, just let them navigate
+    return undefined;
+  });
+}
+
+// Navigate to Previous Page
+function navigateToPreviousPage() {
+  if (!currentUser) {
+    return; // Not logged in, do nothing
+  }
+  
+  if (navigationStack.length <= 1) {
+    // At root page, go to appropriate dashboard
+    const dashboardScreen = currentUserRole === 'admin' ? 'admin-dashboard-screen' : 'dashboard-screen';
+    showScreen(dashboardScreen, false);
+    return;
+  }
+  
+  // Remove current screen from stack
+  navigationStack.pop();
+  
+  // Get previous screen
+  const previousScreen = navigationStack[navigationStack.length - 1];
+  
+  // Navigate to previous screen without adding to history
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(previousScreen).classList.add('active');
+  currentScreen = previousScreen;
+  
+  // Update activity
+  updateActivity();
+}
+
+// Session Management Functions
+function startSession(user, role) {
+  currentUser = user;
+  currentUserRole = role;
+  sessionStartTime = Date.now();
+  lastActivityTime = Date.now();
+  sessionTimeoutWarningShown = false;
+  navigationStack = [];
+  
+  // Start session monitoring
+  if (sessionCheckInterval) {
+    clearInterval(sessionCheckInterval);
+  }
+  sessionCheckInterval = setInterval(checkSessionTimeout, 60000); // Check every minute
+  
+  // Set initial history state
+  const dashboardScreen = role === 'admin' ? 'admin-dashboard-screen' : 'dashboard-screen';
+  window.history.replaceState({ screen: dashboardScreen }, '', '#' + dashboardScreen);
+}
+
+function updateActivity() {
+  if (currentUser) {
+    lastActivityTime = Date.now();
+    sessionTimeoutWarningShown = false;
+  }
+}
+
+function checkSessionTimeout() {
+  if (!currentUser) {
+    return;
+  }
+  
+  const now = Date.now();
+  const inactiveTime = now - lastActivityTime;
+  
+  // Show warning at 25 minutes
+  if (inactiveTime >= SESSION_WARNING_THRESHOLD && !sessionTimeoutWarningShown) {
+    sessionTimeoutWarningShown = true;
+    const remainingMinutes = Math.ceil((SESSION_TIMEOUT - inactiveTime) / 60000);
+    if (confirm(`Session will expire in ${remainingMinutes} minute(s) due to inactivity.\n\nClick OK to stay logged in, or Cancel to logout now.`)) {
+      updateActivity(); // User chose to stay logged in
+    } else {
+      performLogout(); // User chose to logout
+    }
+  }
+  
+  // Auto-logout at 30 minutes
+  if (inactiveTime >= SESSION_TIMEOUT) {
+    alert('Session expired due to inactivity. Please login again.');
+    performLogout();
+  }
+}
+
+function performLogout() {
+  // Clear session
+  currentUser = null;
+  currentUserRole = null;
+  sessionStartTime = null;
+  lastActivityTime = null;
+  sessionTimeoutWarningShown = false;
+  navigationStack = [];
+  
+  // Stop session monitoring
+  if (sessionCheckInterval) {
+    clearInterval(sessionCheckInterval);
+    sessionCheckInterval = null;
+  }
+  
+  // Reset survey data
+  resetSurvey();
+  
+  // Clear history and go to login
+  window.history.replaceState(null, '', window.location.pathname);
+  showScreen('login-screen', false);
+}
+
 // Event Listeners
 function attachEventListeners() {
   // Role selection
@@ -275,15 +433,27 @@ function attachEventListeners() {
   
   // Dashboard
   document.getElementById('logout-btn').addEventListener('click', handleLogout);
-  document.getElementById('start-survey-btn').addEventListener('click', () => showScreen('search-screen'));
-  document.getElementById('view-history-btn').addEventListener('click', showHistory);
-  document.getElementById('sync-data-btn').addEventListener('click', syncData);
+  document.getElementById('start-survey-btn').addEventListener('click', () => {
+    updateActivity();
+    showScreen('search-screen');
+  });
+  document.getElementById('view-history-btn').addEventListener('click', () => {
+    updateActivity();
+    showHistory();
+  });
+  document.getElementById('sync-data-btn').addEventListener('click', () => {
+    updateActivity();
+    syncData();
+  });
   
   // Survey status filter
   document.getElementById('survey-status-filter').addEventListener('change', handleSearch);
   
   // Search
-  document.getElementById('search-back-btn').addEventListener('click', () => showScreen('dashboard-screen'));
+  document.getElementById('search-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
   document.getElementById('search-input').addEventListener('input', handleSearch);
   document.querySelectorAll('.search-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -294,25 +464,53 @@ function attachEventListeners() {
   });
   
   // Consumer Details
-  document.getElementById('details-back-btn').addEventListener('click', () => showScreen('search-screen'));
-  document.getElementById('collect-data-btn').addEventListener('click', startDataCollection);
+  document.getElementById('details-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
+  document.getElementById('collect-data-btn').addEventListener('click', () => {
+    updateActivity();
+    startDataCollection();
+  });
   
   // Network Selection
-  document.getElementById('network-back-btn').addEventListener('click', () => showScreen('consumer-details-screen'));
+  document.getElementById('network-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
   document.getElementById('dc-select').addEventListener('change', handleDCSelect);
-  document.getElementById('dc-next-btn').addEventListener('click', () => goToNetworkStep(2));
+  document.getElementById('dc-next-btn').addEventListener('click', () => {
+    updateActivity();
+    goToNetworkStep(2);
+  });
   document.getElementById('feeder-select').addEventListener('change', handleFeederSelect);
-  document.getElementById('feeder-back-btn').addEventListener('click', () => goToNetworkStep(1));
-  document.getElementById('feeder-next-btn').addEventListener('click', () => goToNetworkStep(3));
+  document.getElementById('feeder-back-btn').addEventListener('click', () => {
+    updateActivity();
+    goToNetworkStep(1);
+  });
+  document.getElementById('feeder-next-btn').addEventListener('click', () => {
+    updateActivity();
+    goToNetworkStep(3);
+  });
   document.getElementById('dtr-select').addEventListener('change', handleDTRSelect);
-  document.getElementById('dtr-back-btn').addEventListener('click', () => goToNetworkStep(2));
-  document.getElementById('dtr-next-btn').addEventListener('click', () => showScreen('data-entry-screen'));
+  document.getElementById('dtr-back-btn').addEventListener('click', () => {
+    updateActivity();
+    goToNetworkStep(2);
+  });
+  document.getElementById('dtr-next-btn').addEventListener('click', () => {
+    updateActivity();
+    showScreen('data-entry-screen');
+  });
   
   // Data Entry
-  document.getElementById('entry-back-btn').addEventListener('click', () => showScreen('network-selection-screen'));
+  document.getElementById('entry-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
   document.getElementById('capture-photo-btn').addEventListener('click', () => document.getElementById('photo-input').click());
   document.getElementById('photo-input').addEventListener('change', handlePhotoCapture);
   document.getElementById('proceed-gps-btn').addEventListener('click', () => {
+    updateActivity();
     collectDataEntry();
     showScreen('gps-screen');
     getGPSLocation();
@@ -329,18 +527,37 @@ function attachEventListeners() {
   });
   
   // GPS
-  document.getElementById('gps-back-btn').addEventListener('click', () => showScreen('data-entry-screen'));
-  document.getElementById('refresh-gps-btn').addEventListener('click', getGPSLocation);
-  document.getElementById('manual-gps-btn').addEventListener('click', manualGPS);
+  document.getElementById('gps-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
+  document.getElementById('refresh-gps-btn').addEventListener('click', () => {
+    updateActivity();
+    getGPSLocation();
+  });
+  document.getElementById('manual-gps-btn').addEventListener('click', () => {
+    updateActivity();
+    manualGPS();
+  });
   document.getElementById('proceed-review-btn').addEventListener('click', () => {
+    updateActivity();
     showScreen('review-screen');
     populateReview();
   });
   
   // Review
-  document.getElementById('review-back-btn').addEventListener('click', () => showScreen('gps-screen'));
-  document.getElementById('edit-data-btn').addEventListener('click', () => showScreen('data-entry-screen'));
-  document.getElementById('final-submit-btn').addEventListener('click', submitSurvey);
+  document.getElementById('review-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
+  document.getElementById('edit-data-btn').addEventListener('click', () => {
+    updateActivity();
+    showScreen('data-entry-screen');
+  });
+  document.getElementById('final-submit-btn').addEventListener('click', () => {
+    updateActivity();
+    submitSurvey();
+  });
   
   // Confirmation checkboxes
   document.querySelectorAll('#review-screen .form-check input').forEach(checkbox => {
@@ -348,91 +565,252 @@ function attachEventListeners() {
   });
   
   // Success
-  document.getElementById('download-excel-btn').addEventListener('click', downloadSurveyExcel);
-  document.getElementById('download-pdf-btn').addEventListener('click', downloadSurveyPDF);
+  document.getElementById('download-excel-btn').addEventListener('click', () => {
+    updateActivity();
+    downloadSurveyExcel();
+  });
+  document.getElementById('download-pdf-btn').addEventListener('click', () => {
+    updateActivity();
+    downloadSurveyPDF();
+  });
   document.getElementById('new-survey-btn').addEventListener('click', () => {
+    updateActivity();
     resetSurvey();
     showScreen('search-screen');
   });
-  document.getElementById('view-history-from-success-btn').addEventListener('click', showHistory);
-  document.getElementById('dashboard-from-success-btn').addEventListener('click', () => showScreen('dashboard-screen'));
+  document.getElementById('view-history-from-success-btn').addEventListener('click', () => {
+    updateActivity();
+    showHistory();
+  });
+  document.getElementById('dashboard-from-success-btn').addEventListener('click', () => {
+    updateActivity();
+    showScreen('dashboard-screen');
+  });
   
   // Admin Dashboard
   document.getElementById('admin-logout-btn').addEventListener('click', handleLogout);
-  document.getElementById('admin-upload-data-btn').addEventListener('click', () => showScreen('admin-upload-screen'));
-  document.getElementById('admin-view-surveys-btn').addEventListener('click', showAdminSurveys);
-  document.getElementById('admin-manage-consumers-btn').addEventListener('click', showAdminConsumers);
+  document.getElementById('admin-upload-data-btn').addEventListener('click', () => {
+    updateActivity();
+    showScreen('admin-upload-screen');
+  });
+  document.getElementById('admin-view-surveys-btn').addEventListener('click', () => {
+    updateActivity();
+    showAdminSurveys();
+  });
+  document.getElementById('admin-manage-consumers-btn').addEventListener('click', () => {
+    updateActivity();
+    showAdminConsumers();
+  });
   document.getElementById('admin-reports-btn').addEventListener('click', showReportsAnalytics);
   document.getElementById('admin-surveyor-mgmt-btn').addEventListener('click', showSurveyorManagement);
   
   // Admin Upload
-  document.getElementById('upload-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
+  document.getElementById('upload-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
   document.getElementById('feeder-file-input').addEventListener('change', (e) => {
     document.getElementById('upload-feeder-btn').disabled = !e.target.files.length;
   });
   document.getElementById('consumer-file-input').addEventListener('change', (e) => {
     document.getElementById('upload-consumer-btn').disabled = !e.target.files.length;
   });
-  document.getElementById('upload-feeder-btn').addEventListener('click', uploadFeederMaster);
-  document.getElementById('upload-consumer-btn').addEventListener('click', uploadConsumerMaster);
-  document.getElementById('download-feeder-template-btn').addEventListener('click', downloadFeederTemplate);
-  document.getElementById('download-consumer-template-btn').addEventListener('click', downloadConsumerTemplate);
+  document.getElementById('upload-feeder-btn').addEventListener('click', () => {
+    updateActivity();
+    uploadFeederMaster();
+  });
+  document.getElementById('upload-consumer-btn').addEventListener('click', () => {
+    updateActivity();
+    uploadConsumerMaster();
+  });
+  document.getElementById('download-feeder-template-btn').addEventListener('click', () => {
+    updateActivity();
+    downloadFeederTemplate();
+  });
+  document.getElementById('download-consumer-template-btn').addEventListener('click', () => {
+    updateActivity();
+    downloadConsumerTemplate();
+  });
   
   // Admin Surveys
-  document.getElementById('surveys-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
-  document.getElementById('admin-survey-date-filter').addEventListener('change', renderAdminSurveys);
-  document.getElementById('admin-surveyor-filter').addEventListener('change', renderAdminSurveys);
+  document.getElementById('surveys-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
+  document.getElementById('admin-survey-date-filter').addEventListener('change', () => {
+    updateActivity();
+    renderAdminSurveys();
+  });
+  document.getElementById('admin-surveyor-filter').addEventListener('change', () => {
+    updateActivity();
+    renderAdminSurveys();
+  });
   
   // Admin Consumers
-  document.getElementById('consumers-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
-  document.getElementById('admin-consumer-search').addEventListener('input', renderAdminConsumers);
-  document.getElementById('admin-consumer-status-filter').addEventListener('change', renderAdminConsumers);
+  document.getElementById('consumers-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
+  document.getElementById('admin-consumer-search').addEventListener('input', () => {
+    updateActivity();
+    renderAdminConsumers();
+  });
+  document.getElementById('admin-consumer-status-filter').addEventListener('change', () => {
+    updateActivity();
+    renderAdminConsumers();
+  });
   
   // Admin Surveyor Management
-  document.getElementById('admin-surveyor-mgmt-btn').addEventListener('click', showSurveyorManagement);
-  document.getElementById('surveyor-mgmt-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
+  document.getElementById('admin-surveyor-mgmt-btn').addEventListener('click', () => {
+    updateActivity();
+    showSurveyorManagement();
+  });
+  document.getElementById('surveyor-mgmt-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
   document.getElementById('add-surveyor-btn').addEventListener('click', openAddSurveyorModal);
-  document.getElementById('surveyor-search').addEventListener('input', renderSurveyorList);
-  document.getElementById('surveyor-dc-filter').addEventListener('change', renderSurveyorList);
-  document.getElementById('surveyor-status-filter').addEventListener('change', renderSurveyorList);
-  document.getElementById('close-surveyor-modal').addEventListener('click', closeSurveyorModal);
-  document.getElementById('cancel-surveyor-btn').addEventListener('click', closeSurveyorModal);
-  document.getElementById('save-surveyor-btn').addEventListener('click', saveSurveyor);
-  document.getElementById('close-surveyor-details-modal').addEventListener('click', closeSurveyorDetailsModal);
-  document.getElementById('edit-surveyor-from-profile-btn').addEventListener('click', editSurveyorFromProfile);
-  document.getElementById('reset-surveyor-password-btn').addEventListener('click', resetSurveyorPassword);
+  document.getElementById('surveyor-search').addEventListener('input', () => {
+    updateActivity();
+    renderSurveyorList();
+  });
+  document.getElementById('surveyor-dc-filter').addEventListener('change', () => {
+    updateActivity();
+    renderSurveyorList();
+  });
+  document.getElementById('surveyor-status-filter').addEventListener('change', () => {
+    updateActivity();
+    renderSurveyorList();
+  });
+  document.getElementById('close-surveyor-modal').addEventListener('click', () => {
+    updateActivity();
+    closeSurveyorModal();
+  });
+  document.getElementById('cancel-surveyor-btn').addEventListener('click', () => {
+    updateActivity();
+    closeSurveyorModal();
+  });
+  document.getElementById('save-surveyor-btn').addEventListener('click', () => {
+    updateActivity();
+    saveSurveyor();
+  });
+  document.getElementById('close-surveyor-details-modal').addEventListener('click', () => {
+    updateActivity();
+    closeSurveyorDetailsModal();
+  });
+  document.getElementById('edit-surveyor-from-profile-btn').addEventListener('click', () => {
+    updateActivity();
+    editSurveyorFromProfile();
+  });
+  document.getElementById('reset-surveyor-password-btn').addEventListener('click', () => {
+    updateActivity();
+    resetSurveyorPassword();
+  });
   
   // DC Management
-  document.getElementById('admin-dc-mgmt-btn').addEventListener('click', showDCManagement);
-  document.getElementById('dc-mgmt-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
+  document.getElementById('admin-dc-mgmt-btn').addEventListener('click', () => {
+    updateActivity();
+    showDCManagement();
+  });
+  document.getElementById('dc-mgmt-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
   document.getElementById('add-dc-btn').addEventListener('click', openAddDCModal);
-  document.getElementById('dc-search').addEventListener('input', renderDCList);
-  document.getElementById('dc-status-filter').addEventListener('change', renderDCList);
-  document.getElementById('close-dc-modal').addEventListener('click', closeDCModal);
-  document.getElementById('cancel-dc-btn').addEventListener('click', closeDCModal);
-  document.getElementById('save-dc-btn').addEventListener('click', saveDC);
+  document.getElementById('dc-search').addEventListener('input', () => {
+    updateActivity();
+    renderDCList();
+  });
+  document.getElementById('dc-status-filter').addEventListener('change', () => {
+    updateActivity();
+    renderDCList();
+  });
+  document.getElementById('close-dc-modal').addEventListener('click', () => {
+    updateActivity();
+    closeDCModal();
+  });
+  document.getElementById('cancel-dc-btn').addEventListener('click', () => {
+    updateActivity();
+    closeDCModal();
+  });
+  document.getElementById('save-dc-btn').addEventListener('click', () => {
+    updateActivity();
+    saveDC();
+  });
   
   // Feeder Management
-  document.getElementById('admin-feeder-mgmt-btn').addEventListener('click', showFeederManagement);
-  document.getElementById('feeder-mgmt-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
+  document.getElementById('admin-feeder-mgmt-btn').addEventListener('click', () => {
+    updateActivity();
+    showFeederManagement();
+  });
+  document.getElementById('feeder-mgmt-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
   document.getElementById('add-feeder-btn').addEventListener('click', openAddFeederModal);
-  document.getElementById('feeder-search').addEventListener('input', renderFeederList);
-  document.getElementById('feeder-dc-filter').addEventListener('change', renderFeederList);
-  document.getElementById('feeder-status-filter').addEventListener('change', renderFeederList);
-  document.getElementById('close-feeder-modal').addEventListener('click', closeFeederModal);
-  document.getElementById('cancel-feeder-btn').addEventListener('click', closeFeederModal);
-  document.getElementById('save-feeder-btn').addEventListener('click', saveFeeder);
+  document.getElementById('feeder-search').addEventListener('input', () => {
+    updateActivity();
+    renderFeederList();
+  });
+  document.getElementById('feeder-dc-filter').addEventListener('change', () => {
+    updateActivity();
+    renderFeederList();
+  });
+  document.getElementById('feeder-status-filter').addEventListener('change', () => {
+    updateActivity();
+    renderFeederList();
+  });
+  document.getElementById('close-feeder-modal').addEventListener('click', () => {
+    updateActivity();
+    closeFeederModal();
+  });
+  document.getElementById('cancel-feeder-btn').addEventListener('click', () => {
+    updateActivity();
+    closeFeederModal();
+  });
+  document.getElementById('save-feeder-btn').addEventListener('click', () => {
+    updateActivity();
+    saveFeeder();
+  });
   
   // Admin Reports & Analytics
-  document.getElementById('admin-reports-btn').addEventListener('click', showReportsAnalytics);
-  document.getElementById('reports-back-btn').addEventListener('click', () => showScreen('admin-dashboard-screen'));
-  document.getElementById('export-all-data-btn').addEventListener('click', exportAllData);
-  document.getElementById('refresh-reports-btn').addEventListener('click', showReportsAnalytics);
+  document.getElementById('admin-reports-btn').addEventListener('click', () => {
+    updateActivity();
+    showReportsAnalytics();
+  });
+  document.getElementById('reports-back-btn').addEventListener('click', () => {
+    updateActivity();
+    // Use proper navigation stack handling
+    navigateToPreviousPage();
+  });
+  document.getElementById('export-all-data-btn').addEventListener('click', () => {
+    updateActivity();
+    exportAllData();
+  });
+  document.getElementById('refresh-reports-btn').addEventListener('click', () => {
+    updateActivity();
+    showReportsAnalytics();
+  });
   
   // History
-  document.getElementById('history-back-btn').addEventListener('click', () => showScreen('dashboard-screen'));
-  document.getElementById('history-date-filter').addEventListener('change', renderHistory);
-  document.getElementById('history-status-filter').addEventListener('change', renderHistory);
+  document.getElementById('history-back-btn').addEventListener('click', () => {
+    updateActivity();
+    navigateToPreviousPage();
+  });
+  document.getElementById('history-date-filter').addEventListener('change', () => {
+    updateActivity();
+    renderHistory();
+  });
+  document.getElementById('history-status-filter').addEventListener('change', () => {
+    updateActivity();
+    renderHistory();
+  });
 }
 
 // Role Change Handler
@@ -472,8 +850,7 @@ function handleLogin(e) {
     const user = surveyorCredentials.find(u => u.id === surveyorId && u.password === password);
     
     if (user) {
-      currentUser = user;
-      currentUserRole = 'surveyor';
+      startSession(user, 'surveyor');
       updateDashboard();
       showScreen('dashboard-screen');
       document.getElementById('login-form').reset();
@@ -485,8 +862,7 @@ function handleLogin(e) {
     const adminId = document.getElementById('admin-id').value;
     
     if (adminId === adminCredentials.username && password === adminCredentials.password) {
-      currentUser = adminCredentials;
-      currentUserRole = 'admin';
+      startSession(adminCredentials, 'admin');
       updateAdminDashboard();
       showScreen('admin-dashboard-screen');
       document.getElementById('login-form').reset();
@@ -506,9 +882,7 @@ function showError(message) {
 // Logout
 function handleLogout() {
   if (confirm('Are you sure you want to logout?')) {
-    currentUser = null;
-    resetSurvey();
-    showScreen('login-screen');
+    performLogout();
   }
 }
 
@@ -529,6 +903,7 @@ function updateDashboard() {
 
 // Search Handler
 function handleSearch() {
+  updateActivity();
   const searchTerm = document.getElementById('search-input').value.toLowerCase();
   const activeTab = document.querySelector('.search-tab.active').dataset.type;
   const statusFilter = document.getElementById('survey-status-filter').value;
@@ -602,6 +977,7 @@ function displaySearchResults(results) {
 
 // Show Consumer Details
 function showConsumerDetails(consumerNo) {
+  updateActivity();
   const consumer = sampleConsumers.find(c => c.consumer_no === consumerNo);
   if (!consumer) return;
   
@@ -630,6 +1006,7 @@ function showConsumerDetails(consumerNo) {
 
 // Start Data Collection
 function startDataCollection() {
+  updateActivity();
   populateDCDropdown();
   showScreen('network-selection-screen');
   goToNetworkStep(1);
@@ -652,6 +1029,7 @@ function populateDCDropdown() {
 
 // Handle DC Select
 function handleDCSelect(e) {
+  updateActivity();
   const dcCode = e.target.value;
   surveyData.dc = dcCode;
   document.getElementById('dc-next-btn').disabled = !dcCode;
@@ -659,6 +1037,7 @@ function handleDCSelect(e) {
 
 // Go to Network Step
 function goToNetworkStep(step) {
+  updateActivity();
   document.querySelectorAll('.network-step').forEach(s => s.classList.remove('active'));
   document.getElementById(`network-step-${step}`).classList.add('active');
   
@@ -691,6 +1070,7 @@ function populateFeederDropdown() {
 
 // Handle Feeder Select
 function handleFeederSelect(e) {
+  updateActivity();
   const feederCode = e.target.value;
   surveyData.feeder = feederCode;
   document.getElementById('feeder-next-btn').disabled = !feederCode;
@@ -712,6 +1092,7 @@ function populateDTRDropdown() {
 
 // Handle DTR Select
 function handleDTRSelect(e) {
+  updateActivity();
   const dtrCode = e.target.value;
   surveyData.dtr = dtrCode;
   document.getElementById('dtr-next-btn').disabled = !dtrCode;
@@ -719,6 +1100,7 @@ function handleDTRSelect(e) {
 
 // Collect Data Entry
 function collectDataEntry() {
+  updateActivity();
   surveyData.mobile = document.getElementById('mobile-input').value;
   surveyData.load = document.getElementById('load-input').value;
   surveyData.tariff = document.getElementById('tariff-input').value;
@@ -743,6 +1125,7 @@ function collectDataEntry() {
 
 // Handle Photo Capture
 function handlePhotoCapture(e) {
+  updateActivity();
   const files = Array.from(e.target.files);
   const maxPhotos = 3;
   
@@ -774,12 +1157,14 @@ function renderPhotos() {
 
 // Remove Photo
 function removePhoto(index) {
+  updateActivity();
   surveyData.photos.splice(index, 1);
   renderPhotos();
 }
 
 // Get GPS Location
 function getGPSLocation() {
+  updateActivity();
   document.getElementById('gps-status-text').textContent = 'Acquiring GPS...';
   document.getElementById('gps-icon').style.animation = 'pulse 2s infinite';
   document.getElementById('proceed-review-btn').disabled = true;
@@ -828,6 +1213,7 @@ function getGPSLocation() {
 
 // Manual GPS Entry
 function manualGPS() {
+  updateActivity();
   const lat = prompt('Enter Latitude:');
   const lng = prompt('Enter Longitude:');
   
@@ -850,6 +1236,7 @@ function manualGPS() {
 
 // Populate Review
 function populateReview() {
+  updateActivity();
   document.getElementById('review-consumer-no').textContent = currentConsumer.consumer_no;
   document.getElementById('review-name').textContent = currentConsumer.name;
   document.getElementById('review-mobile').textContent = surveyData.mobile || currentConsumer.mobile || 'Not provided';
@@ -873,12 +1260,14 @@ function populateReview() {
 
 // Update Submit Button
 function updateSubmitButton() {
+  updateActivity();
   const allChecked = document.querySelectorAll('#review-screen .form-check input:checked').length === 4;
   document.getElementById('final-submit-btn').disabled = !allChecked;
 }
 
 // Submit Survey
 function submitSurvey() {
+  updateActivity();
   const refNumber = `SUR-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}-${String(surveyHistory.length + 1).padStart(3, '0')}`;
   
   const submission = {
@@ -947,12 +1336,14 @@ function resetSurvey() {
 
 // Show History
 function showHistory() {
+  updateActivity();
   showScreen('history-screen');
   renderHistory();
 }
 
 // Render History
 function renderHistory() {
+  updateActivity();
   const container = document.getElementById('history-list');
   const dateFilter = document.getElementById('history-date-filter').value;
   const statusFilter = document.getElementById('history-status-filter').value;
@@ -997,6 +1388,7 @@ function renderHistory() {
 
 // Sync Data
 function syncData() {
+  updateActivity();
   alert('Syncing data... All surveys are up to date!');
 }
 
@@ -1023,6 +1415,7 @@ function updateMasterDataStats() {
 
 // Excel Download Functions
 function downloadSurveyExcel() {
+  updateActivity();
   if (!lastSubmittedSurvey) return;
   
   const wb = XLSX.utils.book_new();
@@ -1072,6 +1465,7 @@ function downloadSurveyExcel() {
 }
 
 function downloadSurveyPDF() {
+  updateActivity();
   if (!lastSubmittedSurvey) return;
   
   const { jsPDF } = window.jspdf;
@@ -1173,6 +1567,7 @@ function downloadSurveyPDF() {
 
 // Template Download Functions
 function downloadFeederTemplate() {
+  updateActivity();
   const wb = XLSX.utils.book_new();
   
   // Instructions Sheet
@@ -1230,6 +1625,7 @@ function downloadFeederTemplate() {
 }
 
 function downloadConsumerTemplate() {
+  updateActivity();
   const wb = XLSX.utils.book_new();
   
   // Instructions Sheet
@@ -1303,6 +1699,7 @@ function downloadConsumerTemplate() {
 
 // Upload Master Data Functions
 function uploadFeederMaster() {
+  updateActivity();
   const fileInput = document.getElementById('feeder-file-input');
   const file = fileInput.files[0];
   const statusDiv = document.getElementById('feeder-upload-status');
@@ -1360,6 +1757,7 @@ function uploadFeederMaster() {
 }
 
 function uploadConsumerMaster() {
+  updateActivity();
   const fileInput = document.getElementById('consumer-file-input');
   const file = fileInput.files[0];
   const statusDiv = document.getElementById('consumer-upload-status');
@@ -1426,11 +1824,14 @@ function uploadConsumerMaster() {
 
 // Admin View Surveys
 function showAdminSurveys() {
-  showScreen('admin-surveys-screen');
+  updateActivity();
+  // Properly add to navigation stack
+  showScreen('admin-surveys-screen', true);
   renderAdminSurveys();
 }
 
 function renderAdminSurveys() {
+  updateActivity();
   const container = document.getElementById('admin-surveys-list');
   const dateFilter = document.getElementById('admin-survey-date-filter').value;
   const surveyorFilter = document.getElementById('admin-surveyor-filter').value;
@@ -1470,11 +1871,14 @@ function renderAdminSurveys() {
 
 // Admin Manage Consumers
 function showAdminConsumers() {
-  showScreen('admin-consumers-screen');
+  updateActivity();
+  // Properly add to navigation stack
+  showScreen('admin-consumers-screen', true);
   renderAdminConsumers();
 }
 
 function renderAdminConsumers() {
+  updateActivity();
   const container = document.getElementById('admin-consumers-list');
   const searchTerm = document.getElementById('admin-consumer-search').value.toLowerCase();
   const statusFilter = document.getElementById('admin-consumer-status-filter').value;
@@ -1527,6 +1931,7 @@ function renderAdminConsumers() {
 }
 
 function resetSurveyFlag(consumerNo) {
+  updateActivity();
   if (!confirm(`Reset survey flag for this consumer? This will make the consumer available for resurvey.`)) {
     return;
   }
@@ -1545,7 +1950,9 @@ function resetSurveyFlag(consumerNo) {
 
 // Surveyor Management Functions
 function showSurveyorManagement() {
-  showScreen('admin-surveyor-screen');
+  updateActivity();
+  // Properly add to navigation stack
+  showScreen('admin-surveyor-screen', true);
   populateSurveyorFilters();
   renderSurveyorList();
 }
@@ -1562,6 +1969,7 @@ function populateSurveyorFilters() {
 }
 
 function renderSurveyorList() {
+  updateActivity();
   const container = document.getElementById('surveyor-list');
   const searchTerm = document.getElementById('surveyor-search').value.toLowerCase();
   const dcFilter = document.getElementById('surveyor-dc-filter').value;
@@ -1623,6 +2031,7 @@ function renderSurveyorList() {
 }
 
 function openAddSurveyorModal() {
+  updateActivity();
   document.getElementById('surveyor-modal-title').textContent = 'Add New Surveyor';
   document.getElementById('surveyor-form').reset();
   document.getElementById('surveyor-edit-id').value = '';
@@ -1649,6 +2058,7 @@ function openAddSurveyorModal() {
 }
 
 function editSurveyor(surveyorId) {
+  updateActivity();
   const surveyor = surveyorCredentials.find(s => s.id === surveyorId);
   if (!surveyor) return;
   
@@ -1676,6 +2086,7 @@ function editSurveyor(surveyorId) {
 }
 
 function saveSurveyor() {
+  updateActivity();
   const editId = document.getElementById('surveyor-edit-id').value;
   const surveyorData = {
     id: document.getElementById('surveyor-id-input').value,
@@ -1729,6 +2140,7 @@ function closeSurveyorModal() {
 }
 
 function viewSurveyorProfile(surveyorId) {
+  updateActivity();
   const surveyor = surveyorCredentials.find(s => s.id === surveyorId);
   if (!surveyor) return;
   
@@ -1814,12 +2226,14 @@ function closeSurveyorDetailsModal() {
 }
 
 function editSurveyorFromProfile() {
+  updateActivity();
   const surveyorId = document.getElementById('surveyor-details-modal').dataset.surveyorId;
   closeSurveyorDetailsModal();
   editSurveyor(surveyorId);
 }
 
 function resetSurveyorPassword() {
+  updateActivity();
   const surveyorId = document.getElementById('surveyor-details-modal').dataset.surveyorId;
   const surveyor = surveyorCredentials.find(s => s.id === surveyorId);
   if (!surveyor) return;
@@ -1832,6 +2246,7 @@ function resetSurveyorPassword() {
 }
 
 function toggleSurveyorStatus(surveyorId) {
+  updateActivity();
   const surveyor = surveyorCredentials.find(s => s.id === surveyorId);
   if (!surveyor) return;
   
@@ -1856,9 +2271,14 @@ function generatePassword() {
 
 // Reports & Analytics Functions
 function showReportsAnalytics() {
-  showScreen('admin-reports-screen');
-  updateReportStats();
-  renderReportCharts();
+  updateActivity();
+  console.log('Opening Reports & Analytics...');
+  // Properly add to navigation stack
+  showScreen('admin-reports-screen', true);
+  setTimeout(() => {
+    updateReportStats();
+    renderReportCharts();
+  }, 100);
 }
 
 function updateReportStats() {
@@ -1886,6 +2306,7 @@ function updateReportStats() {
 }
 
 function renderReportCharts() {
+  console.log('Rendering report charts...');
   // Destroy existing charts
   Object.values(reportCharts).forEach(chart => {
     if (chart) chart.destroy();
@@ -2170,6 +2591,7 @@ function generateGPSData() {
 }
 
 function exportAllData() {
+  updateActivity();
   const wb = XLSX.utils.book_new();
   
   // Survey Summary Sheet
@@ -2238,12 +2660,22 @@ function exportAllData() {
 
 // DC Management Functions
 function showDCManagement() {
-  showScreen('admin-dc-screen');
-  renderDCList();
+  updateActivity();
+  console.log('Opening DC Management...');
+  // Properly add to navigation stack
+  showScreen('admin-dc-screen', true);
+  setTimeout(() => {
+    renderDCList();
+  }, 100);
 }
 
 function renderDCList() {
+  updateActivity();
   const container = document.getElementById('dc-list');
+  if (!container) {
+    console.error('DC list container not found');
+    return;
+  }
   const searchTerm = document.getElementById('dc-search').value.toLowerCase();
   const statusFilter = document.getElementById('dc-status-filter').value;
   
@@ -2299,6 +2731,7 @@ function renderDCList() {
 }
 
 function openAddDCModal() {
+  updateActivity();
   document.getElementById('dc-modal-title').textContent = 'Add New DC';
   document.getElementById('dc-form').reset();
   document.getElementById('dc-edit-code').value = '';
@@ -2306,6 +2739,7 @@ function openAddDCModal() {
 }
 
 function editDC(dcCode) {
+  updateActivity();
   const dc = getDCByCode(dcCode);
   if (!dc) return;
   
@@ -2324,6 +2758,7 @@ function editDC(dcCode) {
 }
 
 function saveDC() {
+  updateActivity();
   const editCode = document.getElementById('dc-edit-code').value;
   const dcData = {
     code: document.getElementById('dc-code-input').value.trim(),
@@ -2370,6 +2805,7 @@ function closeDCModal() {
 }
 
 function viewDCDetails(dcCode) {
+  updateActivity();
   const dc = getDCByCode(dcCode);
   if (!dc) return;
   
@@ -2381,6 +2817,7 @@ function viewDCDetails(dcCode) {
 }
 
 function toggleDCStatus(dcCode) {
+  updateActivity();
   const dc = getDCByCode(dcCode);
   if (!dc) return;
   
@@ -2396,9 +2833,14 @@ function toggleDCStatus(dcCode) {
 
 // Feeder Management Functions
 function showFeederManagement() {
-  showScreen('admin-feeder-screen');
-  populateFeederFilters();
-  renderFeederList();
+  updateActivity();
+  console.log('Opening Feeder Management...');
+  // Properly add to navigation stack
+  showScreen('admin-feeder-screen', true);
+  setTimeout(() => {
+    populateFeederFilters();
+    renderFeederList();
+  }, 100);
 }
 
 function populateFeederFilters() {
@@ -2413,7 +2855,12 @@ function populateFeederFilters() {
 }
 
 function renderFeederList() {
+  updateActivity();
   const container = document.getElementById('feeder-list');
+  if (!container) {
+    console.error('Feeder list container not found');
+    return;
+  }
   const searchTerm = document.getElementById('feeder-search').value.toLowerCase();
   const dcFilter = document.getElementById('feeder-dc-filter').value;
   const statusFilter = document.getElementById('feeder-status-filter').value;
@@ -2473,6 +2920,7 @@ function renderFeederList() {
 }
 
 function openAddFeederModal() {
+  updateActivity();
   document.getElementById('feeder-modal-title').textContent = 'Add New Feeder';
   document.getElementById('feeder-form').reset();
   document.getElementById('feeder-edit-code').value = '';
@@ -2491,6 +2939,7 @@ function openAddFeederModal() {
 }
 
 function editFeeder(feederCode) {
+  updateActivity();
   const feeder = getFeederByCode(feederCode);
   if (!feeder) return;
   
@@ -2519,6 +2968,7 @@ function editFeeder(feederCode) {
 }
 
 function saveFeeder() {
+  updateActivity();
   const editCode = document.getElementById('feeder-edit-code').value;
   const feederData = {
     code: document.getElementById('feeder-code-input').value.trim(),
@@ -2564,6 +3014,7 @@ function closeFeederModal() {
 }
 
 function viewFeederDetails(feederCode) {
+  updateActivity();
   const feeder = getFeederByCode(feederCode);
   if (!feeder) return;
   
@@ -2575,6 +3026,7 @@ function viewFeederDetails(feederCode) {
 }
 
 function toggleFeederStatus(feederCode) {
+  updateActivity();
   const feeder = getFeederByCode(feederCode);
   if (!feeder) return;
   
